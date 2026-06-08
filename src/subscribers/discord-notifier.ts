@@ -302,6 +302,7 @@ export default async function discordNotificationHandler({
                 "currency_code",
                 "total",
                 "subtotal",
+                "summary.*",
                 "shipping_address.first_name",
                 "shipping_address.last_name",
                 "shipping_address.phone",
@@ -368,8 +369,16 @@ export default async function discordNotificationHandler({
             }
         }
 
+        let calculatedTotal = Number(order.total)
+        if (calculatedTotal === 0 && order.summary?.original_order_total) {
+            calculatedTotal = Number(order.summary.original_order_total)
+        } else if (calculatedTotal === 0 && Number(order.subtotal) > 0) {
+            calculatedTotal = Number(order.subtotal)
+        }
+
         const dataForTemplate = {
             ...order,
+            total: calculatedTotal,
             payment_status: paymentStatusFormatted,
             fulfillment_status: fulfillmentStatusFormatted,
             shipment_status: shipmentStatus,
@@ -386,7 +395,7 @@ export default async function discordNotificationHandler({
             currency: currency,
         })
         
-        const formattedTotal = formatter.format(Number(order.total))
+        const formattedTotal = formatter.format(calculatedTotal)
         
         const itemsDescription = order.items
             ?.map((item: any) => {
