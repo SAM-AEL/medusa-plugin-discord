@@ -1,6 +1,6 @@
 {
   "name": "@sam-ael/medusa-plugin-discord",
-  "version": "0.1.14",
+  "version": "0.1.15",
   "description": "Send Discord webhook notifications on Medusa store events with dynamic settings.",
   "author": "SAM-AEL (https://www.github.com/SAM-AEL)",
   "homepage": "https://github.com/SAM-AEL",
