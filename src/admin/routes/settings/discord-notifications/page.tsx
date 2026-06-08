@@ -35,15 +35,76 @@ const PRESET_EVENTS = [
 ]
 
 const EXAMPLE_TEMPLATES: Record<string, string> = {
-    "order.placed": "🛍️ **New Order #{display_id}!**\nPlaced by **{email}** for **{total} {currency_code}**.\n\n**Payment:** {payment_status}\n**Status:** {status}",
-    "order.fulfillment_created": "📦 **Fulfillment Created!**\nItems for order **#{display_id}** are being packed.",
-    "fulfillment.shipment_created": "🚚 **Order Shipped!**\nOrder **#{display_id}** is on its way!\n\n**Tracking:** {tracking_links}",
-    "order.completed": "✅ **Order Completed!**\nOrder **#{display_id}** is now complete.",
-    "order.canceled": "❌ **Order Canceled!**\nOrder **#{display_id}** has been canceled.",
-    "payment.captured": "💰 **Payment Captured!**\nPayment for order **#{display_id}** was successfully captured.",
-    "payment.refunded": "💸 **Payment Refunded!**\nPayment for order **#{display_id}** was refunded.",
-    "customer.created": "👤 **New Customer!**\n**{first_name} {last_name}** ({email}) just registered.",
-    "customer.updated": "👤 **Customer Updated!**\nCustomer **{email}** updated their profile."
+    "order.placed": JSON.stringify({
+        embeds: [{
+            title: "🛍️ New Order #{display_id}!",
+            description: "An order was just placed by **{email}**.",
+            color: 3447003,
+            fields: [
+                { name: "Total Amount", value: "**{total}**", inline: true },
+                { name: "Payment Status", value: "{payment_status}", inline: true },
+                { name: "Items", value: "{items}", inline: false }
+            ],
+            thumbnail: { url: "{thumbnail}" },
+            footer: { text: "Powered by Medusa" }
+        }]
+    }, null, 2),
+    "order.fulfillment_created": JSON.stringify({
+        embeds: [{
+            title: "📦 Fulfillment Created!",
+            description: "Items for order **#{display_id}** are being packed.",
+            color: 15105570
+        }]
+    }, null, 2),
+    "fulfillment.shipment_created": JSON.stringify({
+        embeds: [{
+            title: "🚚 Order Shipped!",
+            description: "Order **#{display_id}** is on its way!\n\n**Tracking:** {tracking_links}",
+            color: 3066993
+        }]
+    }, null, 2),
+    "order.completed": JSON.stringify({
+        embeds: [{
+            title: "✅ Order Completed!",
+            description: "Order **#{display_id}** is now complete.",
+            color: 3066993
+        }]
+    }, null, 2),
+    "order.canceled": JSON.stringify({
+        embeds: [{
+            title: "❌ Order Canceled!",
+            description: "Order **#{display_id}** has been canceled.",
+            color: 15158332
+        }]
+    }, null, 2),
+    "payment.captured": JSON.stringify({
+        embeds: [{
+            title: "💰 Payment Captured!",
+            description: "Payment for order **#{display_id}** was successfully captured.",
+            color: 3066993
+        }]
+    }, null, 2),
+    "payment.refunded": JSON.stringify({
+        embeds: [{
+            title: "💸 Payment Refunded!",
+            description: "Payment for order **#{display_id}** was refunded.",
+            color: 15105570
+        }]
+    }, null, 2),
+    "customer.created": JSON.stringify({
+        embeds: [{
+            title: "👤 New Customer!",
+            description: "**{first_name} {last_name}** ({email}) just registered.",
+            color: 3447003
+        }]
+    }, null, 2),
+    "customer.updated": JSON.stringify({
+        embeds: [{
+            title: "👤 Customer Updated!",
+            description: "Customer **{email}** updated their profile.",
+            color: 3447003
+        }]
+    }, null, 2)
 }
 
 const EMPTY_FORM = {

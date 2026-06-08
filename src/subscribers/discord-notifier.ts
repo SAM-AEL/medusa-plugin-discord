@@ -17,21 +17,41 @@ function getNestedValue(obj: any, path: string): any {
     return current;
 }
 
-function formatValue(value: any, path: string): string {
+function extractNumeric(value: any): number {
+    if (typeof value === "number") return value;
+    if (typeof value === "string") return Number(value);
+    if (typeof value === "object" && value !== null) {
+        if ("numeric_" in value) return Number(value.numeric_);
+        if ("raw_" in value && value.raw_ !== null && "value" in value.raw_) return Number(value.raw_.value);
+        if ("value" in value) return Number(value.value);
+        if (typeof value.valueOf === "function") {
+            const val = value.valueOf();
+            if (typeof val === "number" || typeof val === "string") return Number(val);
+        }
+    }
+    return Number(value);
+}
+
+function formatValue(value: any, path: string, rootData?: any): string {
     if (value === undefined || value === null) {
         return "";
     }
-    if (typeof value === "number") {
-        if (
-            path === "total" ||
-            path === "subtotal" ||
-            path.endsWith(".total") ||
-            path.endsWith(".subtotal") ||
-            path.endsWith(".price") ||
-            path.endsWith(".unit_price")
-        ) {
-            return Number(value).toString();
+    
+    const isPrice = path === "total" || path === "subtotal" || path.endsWith(".total") || path.endsWith(".subtotal") || path.endsWith(".price") || path.endsWith(".unit_price");
+    
+    if (isPrice) {
+        const num = extractNumeric(value);
+        if (!isNaN(num) && rootData && rootData.currency_code) {
+             const formatter = new Intl.NumberFormat('en-US', {
+                 style: 'currency',
+                 currency: rootData.currency_code.toUpperCase(),
+             });
+             return formatter.format(num);
         }
+        return isNaN(num) ? "0" : num.toString();
+    }
+
+    if (typeof value === "number") {
         return value.toString();
     }
     if (Array.isArray(value)) {
@@ -40,8 +60,20 @@ function formatValue(value: any, path: string): string {
                 if (typeof item === "object" && item !== null) {
                     const title = item.title || item.name || "Item";
                     const qty = item.quantity !== undefined ? ` (Qty: ${item.quantity})` : "";
-                    const price = item.unit_price !== undefined ? ` - ${Number(item.unit_price)}` : "";
-                    return `- ${title}${qty}${price}`;
+                    
+                    let priceStr = "";
+                    if (item.unit_price !== undefined) {
+                        const pNum = extractNumeric(item.unit_price);
+                        if (!isNaN(pNum)) {
+                            if (rootData && rootData.currency_code) {
+                                const formatter = new Intl.NumberFormat('en-US', { style: 'currency', currency: rootData.currency_code.toUpperCase() });
+                                priceStr = ` - ${formatter.format(pNum)}`;
+                            } else {
+                                priceStr = ` - ${pNum}`;
+                            }
+                        }
+                    }
+                    return `- ${title}${qty}${priceStr}`;
                 }
                 return `- ${String(item)}`;
             }).join("\n");
@@ -57,7 +89,7 @@ function formatValue(value: any, path: string): string {
 function compileTemplate(template: string, data: any): string {
     return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
         const value = getNestedValue(data, path);
-        return formatValue(value, path);
+        return formatValue(value, path, data);
     });
 }
 
@@ -104,19 +136,24 @@ async function resolveOrderId(name: string, data: any, query: any, logger: any):
 
         // 3. Try to fetch as Payment ID linked to an order
         try {
-            const { data: linkedOrders } = await query.graph({
-                entity: "order",
-                fields: ["id"],
-                filters: {
-                    payment_collections: {
-                        payments: {
-                            id: data.id
+            const { data: payments } = await query.graph({
+                entity: "payment",
+                fields: ["id", "payment_collection_id"],
+                filters: { id: data.id }
+            })
+            if (payments && payments.length > 0 && payments[0].payment_collection_id) {
+                const { data: linkedOrders } = await query.graph({
+                    entity: "order",
+                    fields: ["id"],
+                    filters: {
+                        payment_collections: {
+                            id: payments[0].payment_collection_id
                         }
                     }
+                })
+                if (linkedOrders && linkedOrders.length > 0) {
+                    return linkedOrders[0].id
                 }
-            })
-            if (linkedOrders && linkedOrders.length > 0) {
-                return linkedOrders[0].id
             }
         } catch (e) {
             // Not a payment ID
@@ -338,6 +375,7 @@ export default async function discordNotificationHandler({
             shipment_status: shipmentStatus,
             tracking_numbers: trackingNumbers.join(", ") || "N/A",
             tracking_links: trackingLinks.join(", ") || "N/A",
+            thumbnail: order.items?.[0]?.thumbnail || "",
         }
 
         const currency = order.currency_code.toUpperCase()
