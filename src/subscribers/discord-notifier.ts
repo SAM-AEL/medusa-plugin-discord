@@ -87,9 +87,14 @@ function formatValue(value: any, path: string, rootData?: any): string {
 }
 
 function compileTemplate(template: string, data: any): string {
+    const isJson = template.trim().startsWith("{") && template.trim().endsWith("}");
     return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
         const value = getNestedValue(data, path);
-        return formatValue(value, path, data);
+        let formatted = formatValue(value, path, data);
+        if (isJson && typeof formatted === "string") {
+            formatted = formatted.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+        }
+        return formatted;
     });
 }
 
@@ -336,11 +341,18 @@ export default async function discordNotificationHandler({
         }
 
         // Format and compile order status & tracking info
-        const rawPaymentStatus = order.payment_status || "awaiting"
+        let rawPaymentStatus = order.payment_status || "awaiting"
+        if (name === "payment.captured") rawPaymentStatus = "captured"
+        if (name === "payment.refunded") rawPaymentStatus = "refunded"
         const paymentStatusFormatted = rawPaymentStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
         
-        const rawFulfillmentStatus = order.fulfillment_status || "not_fulfilled"
+        let rawFulfillmentStatus = order.fulfillment_status || "not_fulfilled"
+        if (name === "fulfillment.created") rawFulfillmentStatus = "fulfilled"
         const fulfillmentStatusFormatted = rawFulfillmentStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())
+        
+        let orderStatus = order.status || "pending"
+        if (name === "order.canceled") orderStatus = "canceled"
+        if (name === "order.completed") orderStatus = "completed"
         
         let shipmentStatus = "Pending"
         const trackingNumbers: string[] = []
@@ -379,6 +391,7 @@ export default async function discordNotificationHandler({
         const dataForTemplate = {
             ...order,
             total: calculatedTotal,
+            status: orderStatus,
             payment_status: paymentStatusFormatted,
             fulfillment_status: fulfillmentStatusFormatted,
             shipment_status: shipmentStatus,
@@ -407,17 +420,17 @@ export default async function discordNotificationHandler({
 
         let orderStatusEmoji = "🟡"
         let color = 3447003 // Blue for placed
-        if (order.status === "completed") {
+        if (orderStatus === "completed") {
             orderStatusEmoji = "🟢"
             color = 3066993 // Green
-        } else if (order.status === "canceled") {
+        } else if (orderStatus === "canceled") {
             orderStatusEmoji = "🔴"
             color = 15158332 // Red
         } else if (shipmentStatus === "Shipped") {
             color = 15105570 // Orange
         }
 
-        const orderStatusStr = `${order.status.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} ${orderStatusEmoji}`
+        const orderStatusStr = `${orderStatus.replace(/_/g, " ").replace(/\b\w/g, (c: string) => c.toUpperCase())} ${orderStatusEmoji}`
 
         let paymentStatusEmoji = "🟡"
         if (rawPaymentStatus === "captured") paymentStatusEmoji = "🟢"

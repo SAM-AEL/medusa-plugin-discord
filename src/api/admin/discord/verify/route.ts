@@ -50,9 +50,14 @@ function formatValue(value: any, path: string): string {
 }
 
 function compileTemplate(template: string, data: any): string {
+    const isJson = template.trim().startsWith("{") && template.trim().endsWith("}");
     return template.replace(/\{([a-zA-Z0-9_.]+)\}/g, (match, path) => {
         const value = getNestedValue(data, path);
-        return formatValue(value, path);
+        let formatted = formatValue(value, path);
+        if (isJson && typeof formatted === "string") {
+            formatted = formatted.replace(/\\/g, "\\\\").replace(/"/g, "\\\"").replace(/\n/g, "\\n").replace(/\r/g, "\\r").replace(/\t/g, "\\t");
+        }
+        return formatted;
     });
 }
 
@@ -110,14 +115,26 @@ export async function POST(req: MedusaRequest, res: MedusaResponse) {
             return fail(res, 404, "NOT_FOUND", `Webhook mapping with ID ${id} not found`)
         }
 
+        const globalSettings = await discordSvc.getSettings()
+
         let payload: any = null
 
         if (mapping.message_template) {
             const mockData = mapping.event_name === "customer.created" ? mockCustomer : mockOrder
             const content = compileTemplate(mapping.message_template, mockData)
-            payload = {
-                username: mapping.bot_name || discordSvc.getDefaultBotName(),
-                content: content
+            try {
+                const parsedJson = JSON.parse(content)
+                payload = {
+                    username: mapping.bot_name || discordSvc.getDefaultBotName(),
+                    ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
+                    ...parsedJson
+                }
+            } catch (e) {
+                payload = {
+                    username: mapping.bot_name || discordSvc.getDefaultBotName(),
+                    ...(globalSettings.avatar_url ? { avatar_url: globalSettings.avatar_url } : {}),
+                    content: content
+                }
             }
         } else {
             payload = {
