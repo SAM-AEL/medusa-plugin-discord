@@ -1,22 +1,33 @@
 # @sam-ael/medusa-plugin-discord
 
-A Discord webhook notification plugin for **Medusa v2**. Route store events to your Discord channels with rich embed cards that automatically update in-place as order status changes — from placed → fulfilled → shipped → completed or canceled.
+A Discord webhook notification plugin for **Medusa v2**. Route store events to your Discord channels with rich embed cards that automatically update in-place as order status changes.
+
+[Medusa Website](https://medusajs.com/) | [Medusa Repository](https://github.com/medusajs/medusa)
+
+---
 
 ## Features
 
-- **Live Message Editing** — One message per order, edited in place as status changes. No channel spam.
-- **Shipment & Tracking** — Displays tracking numbers and links as clickable Discord markdown when an order is shipped.
-- **Premium Rich Embeds** — Beautiful default embed cards with color-coded status badges (🟡 Pending → 🚚 Shipped → 🟢 Completed → 🔴 Canceled).
-- **Custom Markdown Templates** — Write your own message templates using Discord Markdown with `{placeholders}`.
-- **Configurable Bot Name** — Set a global fallback bot name via plugin config or env var, and override per-channel from the Admin UI.
-- **Interactive Admin UI** — Manage all webhook mappings and templates directly from the Medusa Admin panel settings.
-- **Placeholder Sidebar** — Click a field (e.g. `{total}`, `{tracking_links}`) to insert it at your cursor in the template editor.
-- **Price Formatting** — Automatically converts price fields from Medusa's integer cents to human-readable decimals.
-- **Multiple Event Triggers** — Supports order, fulfillment, shipment, and customer events.
+- **Live Message Editing:** Tracks a single message per order, editing it in place as status changes (Placed → Fulfilled → Shipped → Completed/Canceled). Avoids channel spam.
+- **Shipment & Tracking Links:** Displays tracking numbers and carriers as clickable Discord markdown links when an order is shipped.
+- **Premium Rich Embeds:** Beautiful, color-coded status embeds (🟡 Pending → 🚚 Shipped → 🟢 Completed → 🔴 Canceled).
+- **Custom Markdown Templates:** Custom template support with placeholders (`{total}`, `{tracking_links}`, etc.) using Discord Markdown.
+- **Interactive Settings UI:** Manage all webhook channels, events, and templates directly from the Medusa Admin panel.
+- **Automatic Price Formatting:** Automatically converts currency values from Medusa integer cents to formatted human-readable decimals.
+
+---
+
+## Prerequisites
+
+- [Node.js v18 or greater](https://nodejs.org/en)
+- [A Medusa v2 backend](https://docs.medusajs.com/v2)
+- A Discord account and server with permission to manage webhooks
 
 ---
 
 ## Installation
+
+Run the following command to install the plugin in your Medusa project:
 
 ```bash
 yarn add @sam-ael/medusa-plugin-discord
@@ -24,33 +35,37 @@ yarn add @sam-ael/medusa-plugin-discord
 
 ---
 
-## Setup
+## Configuration
 
-### 1. Add to `medusa-config.ts`
+### 1. Register in `medusa-config.ts`
+
+Add the plugin configuration block to your `medusa-config.ts` file:
 
 ```ts
 import { DiscordNotificationOptions } from "@sam-ael/medusa-plugin-discord/modules/discord-notification"
 
-plugins: [
+const plugins = [
+  // ... other plugins
   {
     resolve: "@sam-ael/medusa-plugin-discord",
     options: {
-      // Global fallback bot name. Can also be set via env var (see below).
-      // Per-mapping bot names set in the Admin UI take priority over this.
       defaultBotName: process.env.DISCORD_DEFAULT_BOT_NAME || "Discord Bot",
     } satisfies DiscordNotificationOptions,
   },
-],
+]
 ```
 
-### 2. Set Environment Variables (Optional)
+### 2. Environment Variables
 
-```bash
-# .env
+Define the optional environment variables in your `.env` file:
+
+```env
 DISCORD_DEFAULT_BOT_NAME="My Store Bot"
 ```
 
 ### 3. Run Migrations
+
+To create the database schemas for storing your webhook mappings and Discord message mappings, run:
 
 ```bash
 npx medusa db:migrate
@@ -58,114 +73,23 @@ npx medusa db:migrate
 
 ---
 
-## Admin UI
+## Webhooks & API Reference
 
-Navigate to **Settings → Discord Notifications** in the Medusa Admin panel.
+Discord notifications are outbound webhook updates triggered by internal Medusa events. This plugin does not listen to inbound webhooks from Discord.
 
-### Webhook Mapping Fields
+### Admin API Endpoints
 
-| Field | Required | Description |
-|---|---|---|
-| Event Trigger | ✅ | Which Medusa event fires this webhook |
-| Discord Webhook URL | ✅ | Full Discord webhook URL |
-| Channel Label | ❌ | Friendly label (e.g. `#orders`) — display only |
-| Bot Name | ❌ | Override the bot's display name for this channel. Falls back to `defaultBotName` plugin option → `"Discord Bot"` |
-| Custom Message Template | ❌ | Discord Markdown template. Leave blank for default rich embed. |
-| Enabled | ✅ | Toggle to activate/deactivate without deleting |
-
----
-
-## Message Lifecycle (In-Place Editing)
-
-The plugin stores the Discord `message_id` returned when an order notification is first posted. All subsequent events for the same order **edit that same message** rather than posting new ones.
-
-```
-order.placed           → POST new message  → message_id saved to DB
-order.fulfillment_created → PATCH same message  → status updated to "Fulfillment Created 📦"
-fulfillment.shipment_created → PATCH same message → status + tracking links shown 🚚
-order.completed        → PATCH same message → status "Completed ✅" (green)
-order.canceled         → PATCH same message → status "Canceled 🔴" (red)
-```
-
-If the original Discord message is manually deleted, the plugin automatically posts a fresh message and saves the new `message_id`.
-
----
-
-## Supported Events
-
-| Event | Description |
-|---|---|
-| `order.placed` | New order placed |
-| `order.fulfillment_created` | Fulfillment created for an order |
-| `fulfillment.shipment_created` | Shipment created with tracking info |
-| `order.completed` | Order marked as completed |
-| `order.canceled` | Order canceled |
-| `order.updated` | Order updated |
-| `customer.created` | New customer registered |
-| `customer.updated` | Customer profile updated |
-
----
-
-## Template Placeholders
-
-### Order Events
-| Placeholder | Description |
-|---|---|
-| `{id}` | Order ID |
-| `{display_id}` | Human-readable order number |
-| `{status}` | Order status |
-| `{total}` | Order total (formatted as decimal) |
-| `{subtotal}` | Subtotal (formatted as decimal) |
-| `{currency_code}` | Currency code (e.g. `usd`) |
-| `{email}` | Customer email |
-| `{payment_status}` | Payment status |
-| `{fulfillment_status}` | Fulfillment status |
-| `{shipment_status}` | `Pending`, `Fulfillment Created`, or `Shipped` |
-| `{tracking_numbers}` | Comma-separated tracking numbers |
-| `{tracking_links}` | Tracking numbers as clickable Discord markdown links |
-| `{shipping_address.first_name}` | Shipping first name |
-| `{shipping_address.last_name}` | Shipping last name |
-| `{shipping_address.city}` | Shipping city |
-| `{customer.email}` | Customer account email |
-
-### Customer Events
-| Placeholder | Description |
-|---|---|
-| `{id}` | Customer ID |
-| `{email}` | Email address |
-| `{first_name}` | First name |
-| `{last_name}` | Last name |
-| `{phone}` | Phone number |
-
----
-
-## Plugin Options
-
-```ts
-type DiscordNotificationOptions = {
-  /**
-   * Global fallback bot username shown in Discord when no
-   * per-mapping bot_name is configured in the Admin UI.
-   * Defaults to "Discord Bot".
-   */
-  defaultBotName?: string
-}
-```
-
----
-
-## Admin API Reference
+Use these endpoints to programmatically manage your notifications and channels (which are also accessible via the built-in Settings UI).
 
 | Method | Endpoint | Description |
 |---|---|---|
 | `GET` | `/admin/discord/mappings` | List all webhook mappings |
 | `POST` | `/admin/discord/mappings` | Create a new webhook mapping |
-| `POST` | `/admin/discord/mappings/:id` | Update a webhook mapping |
+| `POST` | `/admin/discord/mappings/:id` | Update an existing mapping |
 | `DELETE` | `/admin/discord/mappings/:id` | Delete a webhook mapping |
 | `POST` | `/admin/discord/test` | Send a test notification using mock data |
 
-### Mapping Payload
-
+#### Webhook Mapping Payload Example
 ```json
 {
   "event_name": "order.placed",
@@ -177,17 +101,23 @@ type DiscordNotificationOptions = {
 }
 ```
 
+### Supported Events
+- `order.placed`
+- `order.fulfillment_created`
+- `fulfillment.shipment_created`
+- `order.completed`
+- `order.canceled`
+- `order.updated`
+- `customer.created`
+- `customer.updated`
+
 ---
 
-## Development
+## Test the Plugin
 
-```bash
-yarn typecheck
-yarn build
-```
-
----
-
-## License
-
-MIT
+1. Start your Medusa development server.
+2. Log in to the Medusa Admin panel.
+3. Navigate to **Settings → Discord Notifications**.
+4. Create a mapping for `order.placed` and enter a valid Discord webhook URL.
+5. Click the **Send Test Notification** button (or trigger the `/admin/discord/test` API endpoint via POST).
+6. Verify that the test notification appears in your Discord channel.
